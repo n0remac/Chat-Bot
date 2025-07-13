@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/glebarez/sqlite"
 	"github.com/sashabaranov/go-openai"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -245,7 +245,7 @@ func Charactar(username string, dryRun bool) {
 		}
 		fmt.Printf("Master character sheet saved to %s\n", outputPath)
 	}
-}	
+}
 
 var bestPostsFunction = openai.FunctionDefinition{
 	Name:        "select_best_posts",

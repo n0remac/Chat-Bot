@@ -13,8 +13,8 @@ import (
 // var characterSheetPath = "data/tfs/characters/naoki.json"
 // var sampleWritingPath = "data/tfs/writing/empress-naoki-best-posts.txt"
 
-var characterSheetPath = "data/tfs/characters/trogdor.json"
-var sampleWritingPath = "data/tfs/writing/trogdor-best-posts.txt"
+var characterSheetPath = "data/tfs/characters/silas.json"
+var sampleWritingPath = "data/tfs/writing/silas-best-posts.txt"
 
 // Set your Discord bot token here or via environment
 var discordToken = os.Getenv("DISCORD_BOT_TOKEN")
@@ -83,8 +83,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 }
-
-
 
 // func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 // 	if m.Author.ID == s.State.User.ID {

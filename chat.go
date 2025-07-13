@@ -99,7 +99,6 @@ func Chat(csPath, writingPath, userMessage string) (string, error) {
 
 }
 
-
 func ChatWithHistory(cs *CharacterSheet, writing, chatContext, userMessage string) (string, error) {
 	systemPrompt := buildSystemPrompt(cs, writing)
 	// Prepend chatContext to user message for context

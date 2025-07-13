@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/glebarez/sqlite"
 	"github.com/sashabaranov/go-openai"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 

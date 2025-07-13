@@ -6,6 +6,7 @@ require (
 	github.com/blevesearch/bleve v1.0.14
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/glebarez/go-sqlite v1.22.0
+	github.com/glebarez/sqlite v1.11.0
 	github.com/sashabaranov/go-openai v1.40.5
 	github.com/tidwall/gjson v1.18.0
 	gorm.io/driver/postgres v1.6.0
