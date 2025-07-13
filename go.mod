@@ -1,4 +1,4 @@
-module TFS
+module github.com/n0remac/Chat-Bot
 
 go 1.24.2
 
