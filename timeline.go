@@ -1,19 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/glebarez/sqlite"
+	_ "github.com/glebarez/go-sqlite"
 	"github.com/sashabaranov/go-openai"
-	"gorm.io/gorm"
 )
 
-// --- Models ---
+// --- Models (structs used only for mapping) ---
 type ConversationSummary struct {
-	ID         uint `gorm:"primaryKey;autoIncrement"`
+	ID         uint
 	Username   string
 	ThreadPath string
 	Start      int64
@@ -22,7 +22,7 @@ type ConversationSummary struct {
 }
 
 type ConversationTimelineContext struct {
-	ID         uint `gorm:"primaryKey;autoIncrement"`
+	ID         uint
 	Prompt     string
 	Username   string
 	ThreadPath string
@@ -31,21 +31,74 @@ type ConversationTimelineContext struct {
 	ChunkIDs   string // IDs of the chunk summaries (comma or JSON)
 }
 
-// --- Helpers ---
-func GetUserPosts(db *gorm.DB, username string) ([]ForumPost, error) {
-	var posts []ForumPost
-	err := db.Where("user = ?", username).Order("timestamp asc").Find(&posts).Error
-	return posts, err
+// --- Table migration ---
+func ensureTimelineTables(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS conversation_summaries (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT,
+			thread_path TEXT,
+			start INTEGER,
+			end INTEGER,
+			summary TEXT
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS conversation_timeline_contexts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			prompt TEXT,
+			username TEXT,
+			thread_path TEXT,
+			start INTEGER,
+			end INTEGER,
+			chunk_ids TEXT
+		)
+	`)
+	return err
 }
 
-func GetThreadPostsBetween(db *gorm.DB, threadPath string, start, end int64) ([]ForumPost, error) {
-	var posts []ForumPost
-	q := db.Where("thread_path = ? AND timestamp >= ?", threadPath, start)
-	if end > 0 {
-		q = q.Where("timestamp < ?", end)
+// --- Helpers ---
+func GetUserPosts(db *sql.DB, username string) ([]ForumPost, error) {
+	rows, err := db.Query(`SELECT post_id, user, user_num, timestamp, message, thread_path FROM forum_posts WHERE user = ? ORDER BY timestamp ASC`, username)
+	if err != nil {
+		return nil, err
 	}
-	err := q.Order("timestamp asc").Find(&posts).Error
-	return posts, err
+	defer rows.Close()
+	var posts []ForumPost
+	for rows.Next() {
+		var p ForumPost
+		if err := rows.Scan(&p.PostID, &p.User, &p.UserNum, &p.Timestamp, &p.Message, &p.ThreadPath); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
+}
+
+func GetThreadPostsBetween(db *sql.DB, threadPath string, start, end int64) ([]ForumPost, error) {
+	var rows *sql.Rows
+	var err error
+	if end > 0 && end < (1<<63-1) {
+		rows, err = db.Query(`SELECT post_id, user, user_num, timestamp, message, thread_path FROM forum_posts WHERE thread_path = ? AND timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC`, threadPath, start, end)
+	} else {
+		rows, err = db.Query(`SELECT post_id, user, user_num, timestamp, message, thread_path FROM forum_posts WHERE thread_path = ? AND timestamp >= ? ORDER BY timestamp ASC`, threadPath, start)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var posts []ForumPost
+	for rows.Next() {
+		var p ForumPost
+		if err := rows.Scan(&p.PostID, &p.User, &p.UserNum, &p.Timestamp, &p.Message, &p.ThreadPath); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
 }
 
 type Conversation struct {
@@ -55,7 +108,7 @@ type Conversation struct {
 	Posts      []ForumPost
 }
 
-func FindUserConversations(db *gorm.DB, username string) ([]Conversation, error) {
+func FindUserConversations(db *sql.DB, username string) ([]Conversation, error) {
 	userPosts, err := GetUserPosts(db, username)
 	if err != nil {
 		return nil, err
@@ -74,8 +127,7 @@ func FindUserConversations(db *gorm.DB, username string) ([]Conversation, error)
 		if i+1 < len(userPosts) && userPosts[i+1].ThreadPath != thread {
 			endTime = userPosts[i+1].Timestamp
 		} else if i+1 < len(userPosts) && userPosts[i+1].ThreadPath == thread {
-			// Next post is in the same thread, skip this conversation to avoid duplicate windows
-			continue
+			continue // Next post is in the same thread, skip this conversation to avoid duplicate windows
 		}
 
 		threadPosts, err := GetThreadPostsBetween(db, thread, startTime, endTime)
@@ -96,13 +148,13 @@ func FindUserConversations(db *gorm.DB, username string) ([]Conversation, error)
 
 // --- Timeline Function ---
 func Timeline(dryRun bool, username string) {
-	db, err := gorm.Open(sqlite.Open("data/docs.db"), &gorm.Config{})
+	db, err := sql.Open("sqlite", "data/docs.db")
 	if err != nil {
 		log.Fatalf("failed to connect db: %v", err)
 	}
+	defer db.Close()
 
-	// AutoMigrate all models
-	if err := db.AutoMigrate(&ConversationSummary{}, &SummarizationContext{}, &ConversationTimelineContext{}); err != nil {
+	if err := ensureTimelineTables(db); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 
@@ -130,37 +182,32 @@ func Timeline(dryRun bool, username string) {
 			}
 			summaries = append(summaries, summary)
 		}
-		// Join chunk summaries, or join chunkIDs in dryRun mode
 		summary := strings.Join(summaries, "\n---\n")
 		if dryRun {
-			ctx := ConversationTimelineContext{
-				Prompt:     "You are a skilled fantasy forum summarizer. Your task is to combine multiple summaries into one concise but thorough summary for the entire conversation window.",
-				Username:   username,
-				ThreadPath: convo.ThreadPath,
-				Start:      convo.Start,
-				End:        convo.End,
-				ChunkIDs:   strings.Join(summaries, ","),
-			}
-			if err := db.Create(&ctx).Error; err != nil {
+			res, err := db.Exec(
+				`INSERT INTO conversation_timeline_contexts (prompt, username, thread_path, start, end, chunk_ids) VALUES (?, ?, ?, ?, ?, ?)`,
+				"You are a skilled fantasy forum summarizer. Your task is to combine multiple summaries into one concise but thorough summary for the entire conversation window.",
+				username, convo.ThreadPath, convo.Start, convo.End, strings.Join(summaries, ","),
+			)
+			if err != nil {
 				log.Printf("Failed to save dry run timeline context: %v", err)
 				continue
 			}
-			fmt.Printf("Dry run timeline context saved with ID %d\n", ctx.ID)
-			fmt.Println("Chunk IDs:", ctx.ChunkIDs)
+			id, _ := res.LastInsertId()
+			fmt.Printf("Dry run timeline context saved with ID %d\n", id)
+			fmt.Println("Chunk IDs:", strings.Join(summaries, ","))
 			continue
 		}
 		// Save actual summary to ConversationSummary table
-		convSum := ConversationSummary{
-			Username:   username,
-			ThreadPath: convo.ThreadPath,
-			Start:      convo.Start,
-			End:        convo.End,
-			Summary:    summary,
-		}
-		if err := db.Create(&convSum).Error; err != nil {
+		_, err := db.Exec(
+			`INSERT INTO conversation_summaries (username, thread_path, start, end, summary) VALUES (?, ?, ?, ?, ?)`,
+			username, convo.ThreadPath, convo.Start, convo.End, summary,
+		)
+		if err != nil {
 			log.Printf("Failed to save summary: %v", err)
+		} else {
+			fmt.Printf("Saved summary for Conversation %d\n", i+1)
+			fmt.Println("Summary:", summary)
 		}
-		fmt.Printf("Saved summary for Conversation %d\n", i+1)
-		fmt.Println("Summary:", summary)
 	}
 }

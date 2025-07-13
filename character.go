@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,9 +11,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/glebarez/sqlite"
+	_ "github.com/glebarez/go-sqlite" // Import for database/sql compatibility
 	"github.com/sashabaranov/go-openai"
-	"gorm.io/gorm"
 )
 
 type CharacterSheet struct {
@@ -25,7 +25,7 @@ type CharacterSheet struct {
 	Skills                 []string            `json:"skills"`
 	Goals                  []string            `json:"goals"`
 	Affiliations           []string            `json:"affiliations"`
-	ImportantRelationships []map[string]string `json:"important_relationships"` // [{"name": "...", "type": "..."}]
+	ImportantRelationships []map[string]string `json:"important_relationships"`
 }
 
 // Define function JSON schema for OpenAI
@@ -177,10 +177,28 @@ func extractFirstJSON(s string) (string, error) {
 	return "", errors.New("no JSON object found")
 }
 
-func GetAllUserPosts(db *gorm.DB, username string) ([]ForumPost, error) {
+func GetAllUserPosts(db *sql.DB, username string) ([]ForumPost, error) {
+	rows, err := db.Query(`
+		SELECT post_id, user, user_num, timestamp, message, thread_path 
+		FROM forum_posts 
+		WHERE user = ? 
+		ORDER BY timestamp ASC
+	`, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	var posts []ForumPost
-	err := db.Where("user = ?", username).Order("timestamp asc").Find(&posts).Error
-	return posts, err
+	for rows.Next() {
+		var p ForumPost
+		err := rows.Scan(&p.PostID, &p.User, &p.UserNum, &p.Timestamp, &p.Message, &p.ThreadPath)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, rows.Err()
 }
 
 func ConcatenatePosts(posts []ForumPost) string {
@@ -202,10 +220,12 @@ func min(a, b int) int {
 func Charactar(username string, dryRun bool) {
 	maxChars := 500_000
 
-	db, err := gorm.Open(sqlite.Open("data/docs.db"), &gorm.Config{})
+	// Use pure sql
+	db, err := sql.Open("sqlite", "data/docs.db")
 	if err != nil {
-		log.Fatalf("failed to connect db: %v", err)
+		log.Fatalf("failed to open db: %v", err)
 	}
+	defer db.Close()
 
 	posts, err := GetAllUserPosts(db, username)
 	if err != nil || len(posts) == 0 {
@@ -229,9 +249,8 @@ func Charactar(username string, dryRun bool) {
 		out, _ := json.MarshalIndent(cs, "", "  ")
 		fmt.Printf("Chunk %d character sheet:\n%s\n", i+1, out)
 		sheets = append(sheets, cs)
-		// Optionally: collect for merging later
 	}
-	fmt.Printf("------------------------------------")
+	fmt.Printf("------------------------------------\n")
 	masterSheet, err := SynthesizeMasterSheet(client, username, sheets, dryRun)
 	if err != nil {
 		log.Fatalf("Failed to synthesize master sheet: %v", err)
@@ -329,10 +348,11 @@ func SelectBestPosts(client *openai.Client, posts []ForumPost, charName string, 
 func BestPosts(username string, dryRun bool) {
 	maxChars := 500_000
 
-	db, err := gorm.Open(sqlite.Open("data/docs.db"), &gorm.Config{})
+	db, err := sql.Open("sqlite", "data/docs.db")
 	if err != nil {
-		log.Fatalf("failed to connect db: %v", err)
+		log.Fatalf("failed to open db: %v", err)
 	}
+	defer db.Close()
 
 	posts, err := GetAllUserPosts(db, username)
 	if err != nil || len(posts) == 0 {
@@ -357,9 +377,8 @@ func BestPosts(username string, dryRun bool) {
 		bestPosts = append(bestPosts, selectedPosts...)
 	}
 
-	fmt.Printf("------------------------------------")
+	fmt.Printf("------------------------------------\n")
 	fmt.Printf("Best posts for %s:\n%s\n", username, strings.Join(bestPosts, "\n---\n"))
-	// save to /data/tfs/writing/<username>-best-posts.txt
 	if !dryRun {
 		outputPath := fmt.Sprintf("data/tfs/writing/%s-best-posts.txt", strings.ToLower(strings.ReplaceAll(username, " ", "-")))
 		if err := os.WriteFile(outputPath, []byte(strings.Join(bestPosts, "\n---\n")), 0644); err != nil {

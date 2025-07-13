@@ -1,0 +1,72 @@
+{
+  "name": "Puck",
+  "personality_traits": [
+    "Mischievous",
+    "Playful",
+    "Imaginative",
+    "Curious",
+    "Grandiose (has many self-given titles)",
+    "Authoritative in his domain"
+  ],
+  "likes": [
+    "Mischief",
+    "Exploration",
+    "Imitating voices",
+    "Tea parties with inanimate objects",
+    "Magic mushrooms"
+  ],
+  "dislikes": [
+    "Boredom",
+    "Being questioned"
+  ],
+  "fears": null,
+  "catchphrases": [
+    "I claim this island in the name of Lord Puck!",
+    "You have no power here!",
+    "Halt! Who dares enter The Garden Empire of Lord Puck the Dominator!"
+  ],
+  "skills": [
+    "Phasing into a ball of light",
+    "Walking on vertical surfaces",
+    "Tying shoelaces together",
+    "Lock picking and using keys",
+    "Creating hallucinations",
+    "Dominating wills of creatures"
+  ],
+  "goals": [
+    "Claim and rule territories",
+    "Build and maintain the Garden Nation",
+    "Convert others to the Garden Nation",
+    "Spread the word of his greatness",
+    "Make the Garden a safe haven for little creatures and fae",
+    "Gain recognition as an independent nation",
+    "Explore new lands",
+    "Seek new adventures"
+  ],
+  "affiliations": [
+    "Garden City",
+    "Garden Nation"
+  ],
+  "important_relationships": [
+    {
+      "name": "Tanis",
+      "type": "Past Acquaintance Possibly Diplomatic"
+    },
+    {
+      "name": "Akaisen",
+      "type": "Acquaintance"
+    },
+    {
+      "name": "Lamina",
+      "type": "Subordinate"
+    },
+    {
+      "name": "General Fly",
+      "type": "Subordinate"
+    },
+    {
+      "name": "Captain of Guard Frog",
+      "type": "Subordinate"
+    }
+  ]
+}

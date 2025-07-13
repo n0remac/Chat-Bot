@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,13 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // ---- ForumPost Struct ----
 type ForumPost struct {
-	PostID     string `gorm:"primaryKey"`
+	PostID     string
 	User       string
 	UserNum    int
 	Timestamp  int64
@@ -89,13 +89,24 @@ func ParsePostsFile(path string, threadPath string) ([]ForumPost, error) {
 }
 
 // ---- Scrape and Batch Insert into DB ----
-func ScrapeAndInsertPosts(db *gorm.DB, basePath string) error {
+func ScrapeAndInsertPosts(db *sql.DB, basePath string) error {
 	const batchSize = 1000 // Tune this for your system
 
 	files, err := FindPostsFiles(basePath)
 	if err != nil {
 		return err
 	}
+
+	// Prepare statement for inserting posts
+	stmt, err := db.Prepare(`
+		INSERT OR REPLACE INTO forum_posts
+		(post_id, user, user_num, timestamp, message, thread_path)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare statement failed: %w", err)
+	}
+	defer stmt.Close()
 
 	for _, postsPath := range files {
 		fmt.Printf("Processing %s...\n", postsPath)
@@ -114,8 +125,19 @@ func ScrapeAndInsertPosts(db *gorm.DB, basePath string) error {
 				end = len(posts)
 			}
 			batch := posts[i:end]
-			if err := db.Create(&batch).Error; err != nil {
-				fmt.Printf("DB batch insert error for %s: %v\n", postsPath, err)
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Printf("Failed to begin transaction: %v\n", err)
+				continue
+			}
+			for _, p := range batch {
+				_, err := tx.Stmt(stmt).Exec(p.PostID, p.User, p.UserNum, p.Timestamp, p.Message, p.ThreadPath)
+				if err != nil {
+					fmt.Printf("Insert error (post_id=%s): %v\n", p.PostID, err)
+				}
+			}
+			if err := tx.Commit(); err != nil {
+				fmt.Printf("Commit error: %v\n", err)
 			}
 			fmt.Print(".")
 		}
@@ -123,14 +145,28 @@ func ScrapeAndInsertPosts(db *gorm.DB, basePath string) error {
 	return nil
 }
 
+func ensureForumPostsTable(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS forum_posts (
+			post_id TEXT PRIMARY KEY,
+			user TEXT,
+			user_num INTEGER,
+			timestamp INTEGER,
+			message TEXT,
+			thread_path TEXT
+		)
+	`)
+	return err
+}
+
 func Scrape() {
-	db, err := gorm.Open(sqlite.Open("data/docs.db"), &gorm.Config{})
+	db, err := sql.Open("sqlite", "data/docs.db")
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect database: %v", err))
 	}
-	// Auto-migrate will create the table and columns if not present
-	if err := db.AutoMigrate(&ForumPost{}); err != nil {
-		panic(fmt.Sprintf("failed to migrate: %v", err))
+	defer db.Close()
+	if err := ensureForumPostsTable(db); err != nil {
+		panic(fmt.Sprintf("failed to create table: %v", err))
 	}
 
 	basePath := "data/tfs/forum/"
@@ -141,9 +177,6 @@ func Scrape() {
 
 // ---- Main Entrypoint ----
 func main() {
-	// Timeline()
-	// Scrape()
-	// Summarize()
 	mode := flag.String("mode", "", "Mode to run: scrape, summarize, timeline, character, chat, or best")
 	dryRun := flag.Bool("dry-run", false, "Run without making changes (for testing)")
 	threadPath := flag.String("thread", "", "Thread path to summarize (e.g. overworld/isran-empire/free-plains-isra/isra-free-city/threads/midnight-sun)")
