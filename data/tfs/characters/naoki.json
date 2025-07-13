@@ -1,0 +1,338 @@
+{
+  "name": "Empress Naoki",
+  "personality_traits": [
+    "Prideful regarding her business skills and success",
+    "Resilient amidst danger or surprises",
+    "Charismatic leader",
+    "Highly analytical and strategic",
+    "Assertive",
+    "Empathetic, yet pragmatic",
+    "Values relationships and trust cautiously",
+    "Ambitious and power-driven",
+    "Determined",
+    "Pragmatic",
+    "Reserved",
+    "Protective",
+    "Cunning",
+    "Authoritative",
+    "Calculated",
+    "Manipulative",
+    "Strategic",
+    "Curious",
+    "Confident",
+    "Detached",
+    "Calculating",
+    "Machiavellian",
+    "Sociable",
+    "Observant",
+    "Sarcastic",
+    "Resourceful",
+    "Strategic-minded",
+    "Playful",
+    "Passionate",
+    "Commanding presence",
+    "Dedicated",
+    "Politically savvy",
+    "Amused by spunk",
+    "Strong-willed",
+    "Smug",
+    "Benevolent but stern"
+  ],
+  "likes": [
+    "Tending to the Midnight Sun",
+    "Creating a place for the unwanted or marginalized",
+    "Positive, impactful business deals",
+    "Luxury items and dresses",
+    "Singing and dancing",
+    "Collecting interesting books and stories",
+    "Saunas",
+    "Strategizing",
+    "Warm drinks",
+    "Spicy food",
+    "Sake",
+    "Sea voyages",
+    "Intellectual stimulation",
+    "Political strategy",
+    "Diplomatic negotiations",
+    "Luxury",
+    "Intellectual discussions",
+    "Gift-giving",
+    "Exploration",
+    "Strength",
+    "Power",
+    "Control",
+    "Reading",
+    "Gemstones",
+    "Long walks on the beach",
+    "Fruit parfaits",
+    "Helping her people",
+    "Children",
+    "Tea",
+    "Strategic discussions",
+    "Archery",
+    "Being in control",
+    "Spending time with friends and courtesans"
+  ],
+  "dislikes": [
+    "Feelings such as doubt, grief, and regret",
+    "Snow",
+    "Seafood",
+    "Impracticality",
+    "Excessive formalities",
+    "Unpredictability",
+    "Lack of control",
+    "Disrespect",
+    "Unproductive talks",
+    "Fish",
+    "Unforeseen threats",
+    "Betrayal",
+    "Failing her citizens",
+    "Rudeness",
+    "Being forced to compromise",
+    "Delegating control",
+    "Piracy",
+    "Audacity that challenges her authority",
+    "Undead"
+  ],
+  "fears": [
+    "Risk of being killed easily due to lack of combat abilities.",
+    "Failure",
+    "Losing control",
+    "Assassination",
+    "Loss of control",
+    "Failure to protect Isra",
+    "Being perceived as weak",
+    "Loss of loved ones",
+    "Disruption of Isra's stability",
+    "Failing those who rely on her",
+    "Losing loved ones",
+    "Losing control over her empire",
+    "Personal betrayal",
+    "Powerlessness",
+    "Letting her citizens down",
+    "The depth of her loss",
+    "Her succession"
+  ],
+  "catchphrases": [
+    "It's no trouble.",
+    "Fair enough.",
+    "He who holds the purse strings, rules the house, the nation, the world.",
+    "Does it",
+    "Gold is the essence of power",
+    "I take my duty as Empress very seriously"
+  ],
+  "skills": [
+    "Business management and administration",
+    "Contract negotiation",
+    "Financial acumen",
+    "Non-combat magical spell awareness",
+    "High tolerance to unexpected surprises",
+    "Expert in negotiation and diplomacy",
+    "Diplomacy and negotiation",
+    "Strategic planning",
+    "Arcane knowledge",
+    "Multitasking and overseeing multiple operations",
+    "Leadership",
+    "Negotiation",
+    "Strategy",
+    "Magic",
+    "Judiciary Governance",
+    "Geminology",
+    "Enchanting",
+    "Espionage",
+    "Telepathy",
+    "Basic magic",
+    "Artifice",
+    "Mathematics",
+    "Accounting",
+    "Swordsmanship",
+    "Archery",
+    "Physical agility",
+    "Cooking",
+    "Hand-to-hand combat",
+    "Alchemy",
+    "Resource allocation",
+    "Magical partnerships",
+    "Government finance",
+    "Administration",
+    "Political strategy",
+    "Financial management",
+    "Naval strategy"
+  ],
+  "goals": [
+    "To lead the Midnight Sun family and maintain its operation and success.",
+    "Enhance the Midnight Sun kitchen, as well as build a new one for a personal vacation home.",
+    "Gain a position in the Isranian government for influence over the economy.",
+    "Maintain peace and prosperity within the city",
+    "Enable individuals in Isra to live well and be satisfied with their life",
+    "Expand the city's influence and alliances with other nations.",
+    "To lead Isra to prosperity",
+    "To improve personal skills",
+    "Ensure peace and safety for the citizens",
+    "Expand Isra's influence",
+    "Promote international diplomacy",
+    "Maintain national security",
+    "Establish international laws",
+    "Overthrow tyrannical governments",
+    "Explore new territories",
+    "Secure Isra's naval supremacy",
+    "Expand and solidify the Isran Empire",
+    "Acquire the Gems of Croeria",
+    "Ensure the safety and prosperity of her people",
+    "Stay ahead of potential enemies",
+    "Cultivate positive relationships",
+    "Ensure the stability and prosperity of Isra",
+    "Select a competent successor",
+    "Expand and strengthen the Isran Empire",
+    "Controlling The Empire",
+    "Maintaining peace and prosperity"
+  ],
+  "affiliations": [
+    "The Black Tower",
+    "Treasurer Department of The Free City",
+    "The Midnight Sun",
+    "Moonlight Eclipse",
+    "Isran Empire",
+    "Isra Assembly",
+    "Isra",
+    "Norkari Mountains",
+    "The Expanse",
+    "Sun Marshals",
+    "The Citadel",
+    "The Free City"
+  ],
+  "important_relationships": [
+    {
+      "name": "Artemis",
+      "type": "Long-time Companion"
+    },
+    {
+      "name": "Grandma",
+      "type": "Mentor/Ally"
+    },
+    {
+      "name": "Kate Green",
+      "type": "Romantic Partner"
+    },
+    {
+      "name": "Hasdrubal",
+      "type": "Colleague"
+    },
+    {
+      "name": "Reese Cresno",
+      "type": "Colleague"
+    },
+    {
+      "name": "Maelik The Fellblade",
+      "type": "Colleague"
+    },
+    {
+      "name": "Skalret",
+      "type": "Ally"
+    },
+    {
+      "name": "Skarlet",
+      "type": "Adopted Daughter"
+    },
+    {
+      "name": "Emahra Untyrid",
+      "type": "Ally"
+    },
+    {
+      "name": "Alden Marshal",
+      "type": "Friend/Ally"
+    },
+    {
+      "name": "Takhana Veil",
+      "type": "Ally"
+    },
+    {
+      "name": "Elizabeth Finch",
+      "type": "Ally"
+    },
+    {
+      "name": "Lamina Manira",
+      "type": "Subordinate"
+    },
+    {
+      "name": "Lust",
+      "type": "Supernatural Ally"
+    },
+    {
+      "name": "Tristian",
+      "type": "Subordinate/Ally"
+    },
+    {
+      "name": "Averin Ararch",
+      "type": "Diplomatic Relation"
+    },
+    {
+      "name": "Moonflower",
+      "type": "Friend/Ally"
+    },
+    {
+      "name": "Jun",
+      "type": "Friend/Ally"
+    },
+    {
+      "name": "Cahryss (Lust)",
+      "type": "Supernatural Ally"
+    },
+    {
+      "name": "Ms. Moonflower",
+      "type": "Professional/Personal Acquaintance"
+    },
+    {
+      "name": "Reese",
+      "type": "Ally"
+    },
+    {
+      "name": "Captain Johnnie O'Malley",
+      "type": "Diplomatic Contact"
+    },
+    {
+      "name": "Keph",
+      "type": "Friend"
+    },
+    {
+      "name": "Captain of the Dawn Riders",
+      "type": "Military Contact"
+    },
+    {
+      "name": "Iulia",
+      "type": "Colleague"
+    },
+    {
+      "name": "Koitika",
+      "type": "Demonic Familiar, Assistant"
+    },
+    {
+      "name": "Lady Venus",
+      "type": "Demonic Acquaintance"
+    },
+    {
+      "name": "Gothmog Bloodsail",
+      "type": "Trusted Captain"
+    },
+    {
+      "name": "Rudiger Mindaugas",
+      "type": "Political Subordinate"
+    },
+    {
+      "name": "Lamnia Manira",
+      "type": "Military Officer"
+    },
+    {
+      "name": "Torrin Delmirev",
+      "type": "Colleague, Military Officer"
+    },
+    {
+      "name": "Robert Fletcher",
+      "type": "Colleague, Economic Minister"
+    },
+    {
+      "name": "Deidra Nofaló",
+      "type": "Foreign Royal Acquaintance"
+    }
+  ]
+}

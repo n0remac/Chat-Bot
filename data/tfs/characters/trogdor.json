@@ -1,0 +1,50 @@
+{
+  "name": "Trogdor",
+  "personality_traits": [
+    "Vengeful",
+    "Ambitious",
+    "Ruthless",
+    "Prideful",
+    "Easily angered"
+  ],
+  "likes": [
+    "Gold and riches",
+    "Flying"
+  ],
+  "dislikes": null,
+  "fears": null,
+  "catchphrases": [
+    "Kill, burn, suffer"
+  ],
+  "skills": [
+    "Magic (including creating storms and fire-based attacks)",
+    "Flight",
+    "Rage-induced enhancements"
+  ],
+  "goals": [
+    "Reclaim territory for dragons",
+    "aging the humans for revenge",
+    "Eliminate humans who harm dragons"
+  ],
+  "affiliations": [
+    "Dragon"
+  ],
+  "important_relationships": [
+    {
+      "name": "Lo",
+      "type": "Deity"
+    },
+    {
+      "name": "Zaltos Kiraxo",
+      "type": "Former Master"
+    },
+    {
+      "name": "Giplor Vauc'Tutt",
+      "type": "Human ally"
+    },
+    {
+      "name": "Nereida",
+      "type": "Siren acquaintance"
+    }
+  ]
+}
