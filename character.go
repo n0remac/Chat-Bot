@@ -217,7 +217,7 @@ func min(a, b int) int {
 	return b
 }
 
-func Charactar(username string, dryRun bool) {
+func Charactar(username string, dryRun bool) error{
 	maxChars := 500_000
 
 	// Use pure sql
@@ -229,7 +229,9 @@ func Charactar(username string, dryRun bool) {
 
 	posts, err := GetAllUserPosts(db, username)
 	if err != nil || len(posts) == 0 {
-		log.Fatalf("failed to get posts: %v", err)
+
+		log.Println("failed to get posts: %v", err)
+		return fmt.Errorf("no posts found for user %s", username)
 	}
 	fmt.Printf("Found %d posts for %s\n", len(posts), username)
 
@@ -264,6 +266,7 @@ func Charactar(username string, dryRun bool) {
 		}
 		fmt.Printf("Master character sheet saved to %s\n", outputPath)
 	}
+	return nil
 }
 
 var bestPostsFunction = openai.FunctionDefinition{
@@ -356,7 +359,8 @@ func BestPosts(username string, dryRun bool) {
 
 	posts, err := GetAllUserPosts(db, username)
 	if err != nil || len(posts) == 0 {
-		log.Fatalf("failed to get posts: %v", err)
+		log.Println("failed to get posts: %v", err)
+		return
 	}
 	fmt.Printf("Found %d posts for %s\n", len(posts), username)
 

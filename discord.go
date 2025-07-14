@@ -91,7 +91,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		fmt.Println(username)
 		go func() { // Run in background to avoid blocking
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Creating character sheet and best posts for %s...", username))
-			Charactar(username, false) // This writes to file
+			err := Charactar(username, false) // This writes to file
+			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Failed to create character: %v", err))
+				return
+			}
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Selecting posts for %s...", username))
 			BestPosts(username, false) // This writes to file
 			// Load the results
