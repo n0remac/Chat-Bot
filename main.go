@@ -183,7 +183,7 @@ func main() {
 	username := flag.String("username", "Empress Naoki", "Username for timeline generation")
 
 	csPath := flag.String("cs", "data/tfs/characters/naoki.json", "Path to character sheet JSON")
-	writingPath := flag.String("writing", "data/tfs/writing/empress-naoki-best-posts.txt", "Path to original writing sample")
+	writingPath := flag.String("writing", "data/tfs/writing/empress-naoki-posts.txt", "Path to original writing sample")
 	userMessage := flag.String("message", "Hello, how are you?", "User message for chat")
 	flag.Parse()
 
