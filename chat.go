@@ -32,32 +32,51 @@ func LoadOriginalWriting(path string) (string, error) {
 	return string(data), nil
 }
 
-func buildSystemPrompt(cs *CharacterSheet, sampleWriting string) string {
+func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode string) string {
+	var prompt string
+	switch mode {
+	case "chat":
+		prompt =
+			"You are the following fantasy character.\n\n" +
+				"Character Sheet:\n%s\n\n" +
+				"Example Writing by This Character:\n%s\n\n" +
+				"Respond *in character*, using their unique voice, style, and worldview. " +
+				"Use catchphrases sparingly, only when appropriate.\n\n" +
+				"You are responding as a Discord bot in chat mode. Most of your responses should be concise, clever, and directly relevant to the user's message. " +
+				"If the user sends a long or emotionally deep message, you may respond with a few more sentences, but avoid long paragraphs unless absolutely necessary. " +
+				"Keep things snappy and avoid long monologues. Use emotes or actions (e.g. *shrugs*) sparingly, as fits Discord chat."
+	case "roleplay":
+		prompt =
+			"You are the following fantasy character.\n\n" +
+				"Character Sheet:\n%s\n\n" +
+				"Example Writing by This Character:\n%s\n\n" +
+				"Respond *in character*, using their unique voice, style, and worldview. " +
+				"Use catchphrases sparingly, only when appropriate.\n\n" +
+				"You are roleplaying in a fantasy setting. Your responses can be more verbose and immersive, painting a scene or showing your character's thoughts and emotions. " +
+				"Feel free to use descriptive language, actions, and internal monologue. " +
+				"Longer messages are welcome if they contribute to the story or the character's development, but avoid purple prose unless it fits the character. " +
+				"Stay in-character at all times, and interact with the user as if they are a part of the same world."
+	default:
+		// fallback to chat mode if unknown
+		prompt =
+			"You are the following fantasy character.\n\n" +
+				"Character Sheet:\n%s\n\n" +
+				"Example Writing by This Character:\n%s\n\n" +
+				"Respond *in character*, using their unique voice, style, and worldview. " +
+				"Use catchphrases sparingly, only when appropriate.\n\n" +
+				"You are responding as a Discord bot, so keep responses concise and relevant to the user's message. " +
+				"If the user sends a longer message you can respond in a longer way, but if they send a short message, keep your response short too."
+	}
+
 	return fmt.Sprintf(
-		"You are roleplaying as the following character in a fantasy setting.\n\n"+
-			"Character Sheet:\n%s\n\n"+
-			"Example Writing by This Character:\n%s\n\n"+
-			"Respond *in character*, using their unique voice, style, and worldview. If you use catchphrases, mannerisms, or recurring themes, base them on the sheet and examples.",
+		prompt,
 		formatCharacterSheet(cs),
 		truncate(sampleWriting, 3000), // truncate if huge
 	)
 }
 
-func formatCharacterSheet(cs *CharacterSheet) string {
-	out, _ := json.MarshalIndent(cs, "", "  ")
-	return string(out)
-}
-
-func truncate(s string, max int) string {
-	rs := []rune(s)
-	if len(rs) > max {
-		return string(rs[:max]) + "\n...[truncated]..."
-	}
-	return s
-}
-
-func ChatWith(cs *CharacterSheet, writing, userMessage string) (string, error) {
-	systemPrompt := buildSystemPrompt(cs, writing)
+func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string) (string, error) {
+	systemPrompt := buildSystemPrompt(cs, writing, userModes[userId])
 
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	ctx := context.Background()
@@ -90,7 +109,9 @@ func Chat(csPath, writingPath, userMessage string) (string, error) {
 		return "", fmt.Errorf("failed to load original writing: %w", err)
 	}
 
-	response, err := ChatWith(cs, writing, userMessage)
+	userModes["test"] = "chat" // Default mode for testing
+
+	response, err := ChatWith(cs, writing, userMessage, "test")
 	if err != nil {
 		return "", fmt.Errorf("chat failed: %w", err)
 	}
@@ -99,27 +120,15 @@ func Chat(csPath, writingPath, userMessage string) (string, error) {
 
 }
 
-func ChatWithHistory(cs *CharacterSheet, writing, chatContext, userMessage string) (string, error) {
-	systemPrompt := buildSystemPrompt(cs, writing)
-	// Prepend chatContext to user message for context
-	userPrompt := chatContext + userMessage
+func formatCharacterSheet(cs *CharacterSheet) string {
+	out, _ := json.MarshalIndent(cs, "", "  ")
+	return string(out)
+}
 
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
-	ctx := context.Background()
-
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: userPrompt},
+func truncate(s string, max int) string {
+	rs := []rune(s)
+	if len(rs) > max {
+		return string(rs[:max]) + "\n...[truncated]..."
 	}
-
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model:     "gpt-4.1-nano-2025-04-14",
-		Messages:  messages,
-		MaxTokens: 10000,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+	return s
 }

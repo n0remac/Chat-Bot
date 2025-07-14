@@ -26,6 +26,7 @@ var (
 	loadedWritings   = make(map[string]string)
 	// Per-user currently selected character
 	userCharacter = make(map[string]string)
+	userModes    = make(map[string]string) 
 )
 
 func StartDiscordBot() {
@@ -76,9 +77,18 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// Handle mode switching
+	if fields[0] == "mode" && len(fields) > 1 {
+		mode := strings.Join(fields[1:], " ")
+		userModes[m.Author.ID] = mode
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Switched mode to '%s'.", mode))
+		return
+	}
+
 	// Handle "!create <username>"
 	if fields[0] == "create" && len(fields) > 1 {
 		username := strings.Join(fields[1:], " ")
+		fmt.Println(username)
 		go func() { // Run in background to avoid blocking
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Creating character sheet and best posts for %s...", username))
 			Charactar(username, false) // This writes to file
@@ -137,14 +147,18 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Otherwise, treat as a chat message
 	username, ok := userCharacter[m.Author.ID]
 	if !ok {
-		s.ChannelMessageSend(m.ChannelID, "No character selected! Use !create <username> or !switch <username>.")
-		return
+		username = "Empress Naoki"
+		userCharacter[m.Author.ID] = username 
+	}
+	mode := userModes[m.Author.ID]
+	if mode == "" {
+		mode = "chat" // Default mode if not set
 	}
 	cs := loadedCharacters[username]
 	writing := loadedWritings[username]
 
 	s.ChannelTyping(m.ChannelID)
-	resp, err := ChatWith(cs, writing, userMsg)
+	resp, err := ChatWith(cs, writing, userMsg, mode)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error: %v", err))
 		return
