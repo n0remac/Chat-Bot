@@ -12,6 +12,28 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+type ChatMessage struct {
+	AuthorID string
+	Username string
+	Content  string
+	Time     int64 
+}
+
+const chatHistoryLength = 5
+
+// Maps ChannelID to the last N messages
+var chatHistories = make(map[string][]ChatMessage)
+
+func buildChatHistoryMessages(history []ChatMessage) string {
+	strHistory := ""
+	for _, h := range history {
+		fmt.Println("Chat history message:", h.Content)
+		strHistory += fmt.Sprintf("%s: %s\n", h.Username, h.Content)
+	}
+	fmt.Println("strHistory", strHistory)
+	return strHistory
+}
+
 func LoadCharacterSheet(path string) (*CharacterSheet, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -32,7 +54,7 @@ func LoadOriginalWriting(path string) (string, error) {
 	return string(data), nil
 }
 
-func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode string) string {
+func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode, history string) string {
 	var prompt string
 	switch mode {
 	case "chat":
@@ -68,6 +90,13 @@ func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode string) string {
 				"If the user sends a longer message you can respond in a longer way, but if they send a short message, keep your response short too."
 	}
 
+	prompt += "\n\n" +
+		"Chat History:\n" +
+		history+
+		"\n\n" +
+		"Remember to stay in character and respond as if you are the character, not a bot. " +
+		"Use your unique voice and style, and avoid breaking character."
+
 	return fmt.Sprintf(
 		prompt,
 		formatCharacterSheet(cs),
@@ -75,9 +104,9 @@ func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode string) string {
 	)
 }
 
-func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string) (string, error) {
-	systemPrompt := buildSystemPrompt(cs, writing, userModes[userId])
-
+func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string, history string) (string, error) {
+	systemPrompt := buildSystemPrompt(cs, writing, userModes[userId], history)
+	
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	ctx := context.Background()
 
@@ -111,7 +140,7 @@ func Chat(csPath, writingPath, userMessage string) (string, error) {
 
 	userModes["test"] = "chat" // Default mode for testing
 
-	response, err := ChatWith(cs, writing, userMessage, "test")
+	response, err := ChatWith(cs, writing, userMessage, "test", buildChatHistoryMessages(chatHistories["test"]))
 	if err != nil {
 		return "", fmt.Errorf("chat failed: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -26,10 +27,11 @@ var (
 	loadedWritings   = make(map[string]string)
 	// Per-user currently selected character
 	userCharacter = make(map[string]string)
-	userModes    = make(map[string]string) 
+	userModes     = make(map[string]string)
 )
 
 func StartDiscordBot() {
+	Memory()
 	LoadAllCharacters()
 	if discordToken == "" {
 		log.Fatalf("DISCORD_BOT_TOKEN not set")
@@ -56,6 +58,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	const prefix = "!"
+
+	// Add new message to chat history for this channel
+	history := chatHistories[m.ChannelID]
+	history = append(history, ChatMessage{
+		AuthorID: m.Author.ID,
+		Username: m.Author.Username,
+		Content:  m.Content,
+	})
+	if len(history) > chatHistoryLength {
+		history = history[len(history)-chatHistoryLength:]
+	}
+	chatHistories[m.ChannelID] = history
+
 
 	isCommand := strings.HasPrefix(m.Content, prefix)
 	isDM := m.GuildID == ""
@@ -152,7 +167,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	username, ok := userCharacter[m.Author.ID]
 	if !ok {
 		username = "Empress Naoki"
-		userCharacter[m.Author.ID] = username 
+		userCharacter[m.Author.ID] = username
 	}
 	mode := userModes[m.Author.ID]
 	if mode == "" {
@@ -162,7 +177,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	writing := loadedWritings[username]
 
 	s.ChannelTyping(m.ChannelID)
-	resp, err := ChatWith(cs, writing, userMsg, mode)
+	resp, err := ChatWith(cs, writing, userMsg, m.ChannelID, buildChatHistoryMessages(chatHistories[m.ChannelID]))
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error: %v", err))
 		return
