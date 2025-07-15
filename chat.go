@@ -16,7 +16,7 @@ type ChatMessage struct {
 	AuthorID string
 	Username string
 	Content  string
-	Time     int64 
+	Time     int64
 }
 
 const chatHistoryLength = 5
@@ -91,8 +91,8 @@ func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode, history string) 
 	}
 
 	prompt += "\n\n" +
-		"Chat History:\n" +
-		history+
+		"This is what you remember:\n" +
+		history +
 		"\n\n" +
 		"Remember to stay in character and respond as if you are the character, not a bot. " +
 		"Use your unique voice and style, and avoid breaking character."
@@ -106,7 +106,7 @@ func buildSystemPrompt(cs *CharacterSheet, sampleWriting, mode, history string) 
 
 func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string, history string) (string, error) {
 	systemPrompt := buildSystemPrompt(cs, writing, userModes[userId], history)
-	
+
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	ctx := context.Background()
 
@@ -115,6 +115,7 @@ func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string, hi
 		{Role: "user", Content: userMessage},
 	}
 
+	
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:     "gpt-4.1-nano-2025-04-14",
 		Messages:  messages,

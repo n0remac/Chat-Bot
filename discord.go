@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -31,7 +32,7 @@ var (
 )
 
 func StartDiscordBot() {
-	Memory()
+	StartMemory()
 	LoadAllCharacters()
 	if discordToken == "" {
 		log.Fatalf("DISCORD_BOT_TOKEN not set")
@@ -59,18 +60,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	const prefix = "!"
 
-	// Add new message to chat history for this channel
-	history := chatHistories[m.ChannelID]
-	history = append(history, ChatMessage{
-		AuthorID: m.Author.ID,
-		Username: m.Author.Username,
-		Content:  m.Content,
-	})
-	if len(history) > chatHistoryLength {
-		history = history[len(history)-chatHistoryLength:]
-	}
-	chatHistories[m.ChannelID] = history
-
+	UpdateMemory(m.ChannelID, userCharacter[m.Author.ID], m.Author.ID, m.Author.Username, m.Content, time.Now().Unix())
 
 	isCommand := strings.HasPrefix(m.Content, prefix)
 	isDM := m.GuildID == ""
@@ -91,6 +81,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		s.ChannelMessageSend(m.ChannelID, "Please provide a command or message.")
 		return
 	}
+
+	// Otherwise, treat as a chat message
+	username, ok := userCharacter[m.Author.ID]
+	if !ok {
+		username = "Empress Naoki"
+		userCharacter[m.Author.ID] = username
+	}
+	mode := userModes[m.Author.ID]
+	if mode == "" {
+		mode = "chat" // Default mode if not set
+	}
+	cs := loadedCharacters[username]
+	writing := loadedWritings[username]
 
 	// Handle mode switching
 	if fields[0] == "mode" && len(fields) > 1 {
@@ -142,6 +145,21 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	postDb, err := sql.Open("sqlite", "data/docs.db")
+	if err != nil {
+		log.Fatalf("failed to open postDb: %v", err)
+	}
+
+	if fields[0] == "posts" {
+		username := userCharacter[m.Author.ID]
+		posts, err := GetAllUserPosts(postDb, username)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error fetching posts: %v", err))
+			return
+		}
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Found %d posts for character '%s'.", len(posts), username))
+		return
+	}
 	// Handle "!list" to show loaded characters
 	if fields[0] == "list" {
 		var names []string
@@ -163,21 +181,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	// Otherwise, treat as a chat message
-	username, ok := userCharacter[m.Author.ID]
-	if !ok {
-		username = "Empress Naoki"
-		userCharacter[m.Author.ID] = username
-	}
-	mode := userModes[m.Author.ID]
-	if mode == "" {
-		mode = "chat" // Default mode if not set
-	}
-	cs := loadedCharacters[username]
-	writing := loadedWritings[username]
+	// take message from memoryReq.ReplyChan
+	history := GetMemorySummary(m.ChannelID, username)
+
+	fmt.Println("History summary:", history.SummaryText)
 
 	s.ChannelTyping(m.ChannelID)
-	resp, err := ChatWith(cs, writing, userMsg, m.ChannelID, buildChatHistoryMessages(chatHistories[m.ChannelID]))
+	resp, err := ChatWith(cs, writing, userMsg, m.ChannelID, history.SummaryText)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error: %v", err))
 		return
