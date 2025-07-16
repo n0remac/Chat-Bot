@@ -209,6 +209,8 @@ func main() {
 		StartDiscordBot()
 	case "vector":
 		CreateVectorDBForTFS(*dryRun)
+	case "download-batch":
+		DownloadBatch()
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
 	}

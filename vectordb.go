@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 
@@ -329,4 +331,73 @@ func hashString(s string) int {
 		hash = -hash
 	}
 	return hash
+}
+
+func DownloadBatch() {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		fmt.Println("Set OPENAI_API_KEY env variable.")
+		return
+	}
+	fileID := "file-6TYKRazxwpon8nXJgGVGwc"
+	url := fmt.Sprintf("https://api.openai.com/v1/files/%s/content", fileID)
+	outfile := "embeddings_output.jsonl"
+
+	// Get content length
+	req, _ := http.NewRequest("HEAD", url, nil)
+	req.Header.Add("Authorization", "Bearer "+apiKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("Error fetching headers:", err)
+		return
+	}
+	lengthStr := resp.Header.Get("Content-Length")
+	if lengthStr == "" {
+		fmt.Println("No Content-Length header found")
+		return
+	}
+	length, _ := strconv.Atoi(lengthStr)
+	fmt.Println("Total file size:", length, "bytes")
+
+	chunkSize := 50 * 1024 * 1024 // 50 MB
+	start := 0
+	part := 1
+
+	f, err := os.Create(outfile)
+	if err != nil {
+		fmt.Println("Error creating output file:", err)
+		return
+	}
+	defer f.Close()
+
+	for start < length {
+		end := start + chunkSize - 1
+		if end >= length {
+			end = length - 1
+		}
+		fmt.Printf("Downloading bytes %d-%d...\n", start, end)
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Add("Authorization", "Bearer "+apiKey)
+		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			fmt.Printf("Error on chunk %d: %v\n", part, err)
+			return
+		}
+		if resp.StatusCode != 206 && resp.StatusCode != 200 {
+			fmt.Printf("Server returned status %d on chunk %d\n", resp.StatusCode, part)
+			return
+		}
+
+		_, err = io.Copy(f, resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			fmt.Printf("Error writing chunk %d: %v\n", part, err)
+			return
+		}
+		start = end + 1
+		part++
+	}
+	fmt.Println("Download complete!")
 }
