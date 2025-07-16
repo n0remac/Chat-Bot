@@ -207,6 +207,8 @@ func main() {
 		BestPosts(*username, *dryRun)
 	case "discord":
 		StartDiscordBot()
+	case "vector":
+		CreateVectorDBForTFS(*dryRun)
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
 	}
