@@ -182,7 +182,7 @@ func submitEmbeddingsBatch(client *openai.Client, lines []openai.BatchLineItem) 
 	return batchResp.ID, nil
 }
 
-const maxBatchSize = 50000
+const maxBatchSize = 500
 
 func CreateVectorDBForTFS(dryMode bool) {
 	db, err := sql.Open("sqlite", dbPath)
@@ -190,6 +190,10 @@ func CreateVectorDBForTFS(dryMode bool) {
 		log.Fatalf("Fatal: failed to open sqlite db at %s: %v", dbPath, err)
 	}
 	defer db.Close()
+
+	if err := EnsureBatchTable(db); err != nil {
+		log.Fatalf("Fatal: Failed to ensure batch_jobs table exists: %v", err)
+	}
 
 	posts, err := GetAllForumPosts(db)
 	if err != nil {
@@ -255,6 +259,9 @@ func CreateVectorDBForTFS(dryMode bool) {
 			batchID, err := submitEmbeddingsBatch(openaiClient, lines)
 			if err != nil {
 				log.Fatalf("Fatal: Failed to submit embedding batch: %v", err)
+			}
+			if err := SaveBatchID(db, batchID); err != nil {
+				log.Printf("Warning: Failed to save batch ID %s: %v", batchID, err)
 			}
 			log.Println("-----")
 			log.Printf("Submitted embedding batch job to OpenAI Batch API for %d posts.\n", len(batch))
@@ -333,13 +340,12 @@ func hashString(s string) int {
 	return hash
 }
 
-func DownloadBatch() {
+func DownloadBatch(fileID string) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		fmt.Println("Set OPENAI_API_KEY env variable.")
 		return
 	}
-	fileID := "file-6TYKRazxwpon8nXJgGVGwc"
 	url := fmt.Sprintf("https://api.openai.com/v1/files/%s/content", fileID)
 	outfile := "embeddings_output.jsonl"
 
@@ -400,4 +406,123 @@ func DownloadBatch() {
 		part++
 	}
 	fmt.Println("Download complete!")
+}
+
+func EnsureBatchTable(db *sql.DB) error {
+	_, err := db.Exec(`
+	CREATE TABLE IF NOT EXISTS batch_jobs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		batch_id TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		completed BOOLEAN DEFAULT 0
+	);
+	`)
+	return err
+}
+
+func SaveBatchID(db *sql.DB, batchID string) error {
+	_, err := db.Exec(`INSERT INTO batch_jobs (batch_id, completed) VALUES (?, 0)`, batchID)
+	return err
+}
+
+func CompleteBatches() {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		log.Fatalf("Fatal: failed to open sqlite db at %s: %v", dbPath, err)
+	}
+	if err := MarkAllBatchesCompleted(db); err != nil {
+		log.Printf("Warning: Failed to mark all batches completed: %v", err)
+	} else {
+		log.Println("All batch jobs marked as completed.")
+	}
+}
+
+func MarkAllBatchesCompleted(db *sql.DB) error {
+	_, err := db.Exec(`UPDATE batch_jobs SET completed = 1 WHERE completed = 0`)
+	return err
+}
+
+func ListBatches() {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		log.Fatalf("Fatal: failed to open sqlite db at %s: %v", dbPath, err)
+	}
+	batches, err := GetUncompletedBatchIDs(db)
+	if err != nil {
+		log.Fatalf("Fatal: Failed to get uncompleted batch IDs: %v", err)
+	}
+	if len(batches) == 0 {
+		log.Println("No uncompleted batches found.")
+		return
+	}
+	log.Println("Uncompleted batch IDs:")
+	for _, batchID := range batches {
+		log.Println("  " + batchID)
+	}
+}
+
+func GetUncompletedBatchIDs(db *sql.DB) ([]string, error) {
+	rows, err := db.Query(`SELECT batch_id FROM batch_jobs WHERE completed = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var batchIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		batchIDs = append(batchIDs, id)
+	}
+	return batchIDs, nil
+}
+
+func DownloadCompletedBatches() error {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open db: %w", err)
+	}
+	defer db.Close()
+
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return fmt.Errorf("OPENAI_API_KEY not set")
+	}
+	openaiClient := openai.NewClient(apiKey)
+
+	batchIDs, err := GetUncompletedBatchIDs(db)
+	if err != nil {
+		return fmt.Errorf("failed to fetch batch IDs: %w", err)
+	}
+
+	for _, batchID := range batchIDs {
+		// --- Poll/check completion ---
+		batch, err := openaiClient.RetrieveBatch(context.Background(), batchID)
+		if err != nil {
+			log.Printf("Failed to get batch %s: %v (will retry later)", batchID, err)
+			continue
+		}
+		if batch.Status != "completed" {
+			log.Printf("Batch %s not complete (status: %s), skipping.", batchID, batch.Status)
+			continue
+		}
+		// --- Download results file ---
+		fileID := batch.OutputFileID // Should be batch.OutputFileID (verify with your actual struct)
+		if *fileID == "" {
+			log.Printf("No output file ID for batch %s, skipping.", batchID)
+			continue
+		}
+		log.Printf("Downloading completed batch %s (file id: %s)...", batchID, fileID)
+		DownloadBatch(*fileID)
+		// --- Mark as completed ---
+		_, err = db.Exec(`UPDATE batch_jobs SET completed = 1 WHERE batch_id = ?`, batchID)
+		if err != nil {
+			log.Printf("Warning: Could not mark batch %s as completed: %v", batchID, err)
+			continue
+		}
+		log.Printf("Batch %s marked as completed.", batchID)
+	}
+	return nil
 }

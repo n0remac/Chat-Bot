@@ -185,6 +185,7 @@ func main() {
 	csPath := flag.String("cs", "data/tfs/characters/naoki.json", "Path to character sheet JSON")
 	writingPath := flag.String("writing", "data/tfs/writing/empress-naoki-posts.txt", "Path to original writing sample")
 	userMessage := flag.String("message", "Hello, how are you?", "User message for chat")
+	fieldID := flag.String("file-id", "", "OpenAI file ID for batch download")
 	flag.Parse()
 
 	switch *mode {
@@ -210,7 +211,14 @@ func main() {
 	case "vector":
 		CreateVectorDBForTFS(*dryRun)
 	case "download-batch":
-		DownloadBatch()
+		DownloadBatch(*fieldID)
+	case "complete-batches":
+		CompleteBatches()
+	case "list-batches":
+		ListBatches()
+	case "download-batches":
+		DownloadCompletedBatches()
+
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
 	}
