@@ -174,6 +174,28 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	if fields[0] == "search" {
+		query := strings.Join(fields[1:], " ")
+		if query == "" {
+			s.ChannelMessageSend(m.ChannelID, "Please provide a search query.")
+			return
+		}
+		topK := 1 // Default number of results
+		results, err := SearchForumPosts(query, topK)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Search error: %v", err))
+			return
+		}
+		if results == "" {
+			s.ChannelMessageSend(m.ChannelID, "No results found.")
+		} else {
+			fmt.Println(len(results))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Search results:\n%s", results))
+		}
+		return
+	}
+
+
 	// If the user sends just a character name (shortcut to switch)
 	if len(fields) == 1 && loadedCharacters[fields[0]] != nil {
 		userCharacter[m.Author.ID] = fields[0]

@@ -5,9 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 
@@ -35,132 +33,9 @@ const (
 	collectionName = "forum_posts"
 	// OpenAI's text-embedding-ada-002 model produces vectors of this size.
 	// It's crucial that this matches the model's output.
-	vectorSize = 1536
+	vectorSize   = 3072
+	maxBatchSize = 500
 )
-
-func CreateVectorDBForCharacter(character string) {
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		log.Fatalf("Fatal: failed to open sqlite db at %s: %v", dbPath, err)
-	}
-	defer db.Close()
-
-	log.Printf("Fetching posts for character %q from SQLite database...", character)
-	posts, err := GetAllUserPosts(db, character)
-	if err != nil {
-		log.Fatalf("Fatal: Failed to get posts for character %q: %v", character, err)
-	}
-	if len(posts) == 0 {
-		log.Printf("No posts found for character %q. Exiting.", character)
-		return
-	}
-	log.Printf("Successfully found %d posts to process for character %q.\n", len(posts), character)
-
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("Fatal: OPENAI_API_KEY environment variable is not set.")
-	}
-	openaiClient := openai.NewClient(apiKey)
-
-	log.Println("Connecting to Qdrant...")
-	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
-		Host: qdrantHost,
-		Port: qdrantPort,
-	})
-	if err != nil {
-		log.Fatalf("Fatal: Could not create qdrant client: %v", err)
-	}
-
-	log.Printf("Ensuring Qdrant collection '%s' exists...\n", collectionName)
-	err = qdrantClient.CreateCollection(context.Background(), &qdrant.CreateCollection{
-		CollectionName: collectionName,
-		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     vectorSize,
-			Distance: qdrant.Distance_Cosine,
-		}),
-	})
-	if err != nil {
-		log.Printf("Note: Could not create collection (it likely already exists): %v\n", err)
-	}
-
-	batchSize := 100
-	for i := 0; i < len(posts); i += batchSize {
-		end := i + batchSize
-		if end > len(posts) {
-			end = len(posts)
-		}
-		batch := posts[i:end]
-		log.Printf("Processing batch %d-%d of %d for %q...\n", i+1, end, len(posts), character)
-
-		textsToEmbed := make([]string, len(batch))
-		for j, post := range batch {
-			textsToEmbed[j] = post.Message
-		}
-
-		embeddings, err := getEmbeddings(openaiClient, textsToEmbed)
-		if err != nil {
-			log.Fatalf("Fatal: Failed to get embeddings for batch %d-%d: %v", i+1, end, err)
-		}
-
-		points := make([]*qdrant.PointStruct, len(batch))
-		for j, post := range batch {
-			postIDUint, err := strconv.ParseUint(post.PostID, 10, 64)
-			if err != nil {
-				log.Fatalf("Fatal: Failed to convert post_id '%s' to uint64: %v", post.PostID, err)
-			}
-			points[j] = &qdrant.PointStruct{
-				Id:      qdrant.NewIDNum(postIDUint),
-				Vectors: qdrant.NewVectors(embeddings[j]...),
-				Payload: qdrant.NewValueMap(map[string]any{
-					"user":        post.User,
-					"timestamp":   post.Timestamp,
-					"thread_path": post.ThreadPath,
-					"message":     post.Message,
-				}),
-			}
-		}
-		_, err = qdrantClient.Upsert(context.Background(), &qdrant.UpsertPoints{
-			CollectionName: collectionName,
-			Points:         points,
-			Wait:           func(b bool) *bool { return &b }(true),
-		})
-		if err != nil {
-			log.Fatalf("Fatal: Failed to upsert batch %d-%d to Qdrant: %v", i+1, end, err)
-		}
-	}
-
-	log.Println("---")
-	log.Printf("Successfully indexed all posts for character %q into Qdrant.\n", character)
-	log.Printf("Collection '%s' is now ready for searching.\n", collectionName)
-}
-
-// getEmbeddings takes a slice of texts and returns their vector embeddings
-// from the OpenAI API.
-func getEmbeddings(client *openai.Client, texts []string) ([][]float32, error) {
-	if len(texts) == 0 {
-		return nil, nil
-	}
-
-	// Create the request for the OpenAI API
-	req := openai.EmbeddingRequest{
-		Input: texts,
-		Model: openai.LargeEmbedding3,
-	}
-
-	// Call the API
-	resp, err := client.CreateEmbeddings(context.Background(), req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embeddings from openai: %w", err)
-	}
-
-	// Extract the float vectors from the response
-	embeddings := make([][]float32, len(resp.Data))
-	for i, d := range resp.Data {
-		embeddings[i] = d.Embedding
-	}
-
-	return embeddings, nil
-}
 
 func submitEmbeddingsBatch(client *openai.Client, lines []openai.BatchLineItem) (string, error) {
 	ctx := context.Background()
@@ -181,8 +56,6 @@ func submitEmbeddingsBatch(client *openai.Client, lines []openai.BatchLineItem) 
 	// batchResp.ID is your batch identifier for later polling
 	return batchResp.ID, nil
 }
-
-const maxBatchSize = 500
 
 func CreateVectorDBForTFS(dryMode bool) {
 	db, err := sql.Open("sqlite", dbPath)
@@ -340,74 +213,6 @@ func hashString(s string) int {
 	return hash
 }
 
-func DownloadBatch(fileID string) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		fmt.Println("Set OPENAI_API_KEY env variable.")
-		return
-	}
-	url := fmt.Sprintf("https://api.openai.com/v1/files/%s/content", fileID)
-	outfile := "embeddings_output.jsonl"
-
-	// Get content length
-	req, _ := http.NewRequest("HEAD", url, nil)
-	req.Header.Add("Authorization", "Bearer "+apiKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println("Error fetching headers:", err)
-		return
-	}
-	lengthStr := resp.Header.Get("Content-Length")
-	if lengthStr == "" {
-		fmt.Println("No Content-Length header found")
-		return
-	}
-	length, _ := strconv.Atoi(lengthStr)
-	fmt.Println("Total file size:", length, "bytes")
-
-	chunkSize := 50 * 1024 * 1024 // 50 MB
-	start := 0
-	part := 1
-
-	f, err := os.Create(outfile)
-	if err != nil {
-		fmt.Println("Error creating output file:", err)
-		return
-	}
-	defer f.Close()
-
-	for start < length {
-		end := start + chunkSize - 1
-		if end >= length {
-			end = length - 1
-		}
-		fmt.Printf("Downloading bytes %d-%d...\n", start, end)
-		req, _ := http.NewRequest("GET", url, nil)
-		req.Header.Add("Authorization", "Bearer "+apiKey)
-		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", start, end))
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			fmt.Printf("Error on chunk %d: %v\n", part, err)
-			return
-		}
-		if resp.StatusCode != 206 && resp.StatusCode != 200 {
-			fmt.Printf("Server returned status %d on chunk %d\n", resp.StatusCode, part)
-			return
-		}
-
-		_, err = io.Copy(f, resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			fmt.Printf("Error writing chunk %d: %v\n", part, err)
-			return
-		}
-		start = end + 1
-		part++
-	}
-	fmt.Println("Download complete!")
-}
-
 func EnsureBatchTable(db *sql.DB) error {
 	_, err := db.Exec(`
 	CREATE TABLE IF NOT EXISTS batch_jobs (
@@ -479,50 +284,63 @@ func GetUncompletedBatchIDs(db *sql.DB) ([]string, error) {
 	return batchIDs, nil
 }
 
-func DownloadCompletedBatches() error {
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to open db: %w", err)
-	}
-	defer db.Close()
-
+func SearchForumPosts(query string, topK int) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("OPENAI_API_KEY not set")
+		return "", fmt.Errorf("OPENAI_API_KEY not set")
 	}
 	openaiClient := openai.NewClient(apiKey)
 
-	batchIDs, err := GetUncompletedBatchIDs(db)
+	// 1. Get query embedding
+	embResp, err := openaiClient.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
+		Input: []string{query},
+		Model: openai.LargeEmbedding3, // Or ada-002
+	})
 	if err != nil {
-		return fmt.Errorf("failed to fetch batch IDs: %w", err)
+		return "", fmt.Errorf("embedding request failed: %w", err)
+	}
+	if len(embResp.Data) == 0 {
+		return "", fmt.Errorf("no embedding returned for query")
+	}
+	queryVec := embResp.Data[0].Embedding
+	if len(queryVec) != vectorSize {
+		return "", fmt.Errorf("embedding size mismatch: got %d, want %d", len(queryVec), vectorSize)
 	}
 
-	for _, batchID := range batchIDs {
-		// --- Poll/check completion ---
-		batch, err := openaiClient.RetrieveBatch(context.Background(), batchID)
-		if err != nil {
-			log.Printf("Failed to get batch %s: %v (will retry later)", batchID, err)
-			continue
-		}
-		if batch.Status != "completed" {
-			log.Printf("Batch %s not complete (status: %s), skipping.", batchID, batch.Status)
-			continue
-		}
-		// --- Download results file ---
-		fileID := batch.OutputFileID // Should be batch.OutputFileID (verify with your actual struct)
-		if *fileID == "" {
-			log.Printf("No output file ID for batch %s, skipping.", batchID)
-			continue
-		}
-		log.Printf("Downloading completed batch %s (file id: %s)...", batchID, fileID)
-		DownloadBatch(*fileID)
-		// --- Mark as completed ---
-		_, err = db.Exec(`UPDATE batch_jobs SET completed = 1 WHERE batch_id = ?`, batchID)
-		if err != nil {
-			log.Printf("Warning: Could not mark batch %s as completed: %v", batchID, err)
-			continue
-		}
-		log.Printf("Batch %s marked as completed.", batchID)
+	// 2. Connect to Qdrant
+	qdrantClient, err := qdrant.NewClient(&qdrant.Config{Host: qdrantHost, Port: qdrantPort})
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to Qdrant: %w", err)
 	}
-	return nil
+
+	// 3. Build Qdrant QueryPoints struct (returns top K)
+	queryPoints := &qdrant.QueryPoints{
+		CollectionName: collectionName,
+		Query:          qdrant.NewQuery(queryVec...), // Unpack the vector
+		Limit:          func(v uint64) *uint64 { return &v }(uint64(topK)),
+		WithPayload:    qdrant.NewWithPayload(true), // Get payload data
+	}
+	result, err := qdrantClient.Query(context.Background(), queryPoints)
+	if err != nil {
+		return "", fmt.Errorf("Qdrant query error: %w", err)
+	}
+	if len(result) == 0 {
+		fmt.Println("No results found.")
+		return "No results found.", nil
+	}
+
+	fmt.Println("Top results:")
+	strResults := ""
+	for i, pt := range result {
+		fmt.Printf("Rank %d, score: %.4f\n", i+1, pt.Score)
+		if pt.Payload != nil {
+			fmt.Printf("  user: %v\n", pt.Payload["user"])
+			fmt.Printf("  message: %v\n", pt.Payload["message"])
+			fmt.Printf("  thread_id: %v\n", pt.Payload["thread_id"])
+			fmt.Printf("  timestamp: %v\n", pt.Payload["timestamp"])
+			strResults += fmt.Sprintf("Username %s:\n%s\n", pt.Payload["user"], pt.Payload["message"])
+		}
+		fmt.Println()
+	}
+	return strResults, nil
 }

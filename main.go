@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -22,6 +23,22 @@ type ForumPost struct {
 	Timestamp  int64
 	Message    string
 	ThreadPath string
+}
+
+func CountLines(filename string) (int, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lines := 0
+	for scanner.Scan() {
+		lines++
+	}
+	fmt.Println(lines)
+	return lines, scanner.Err()
 }
 
 // ---- Find All `posts` Files ----
@@ -185,7 +202,7 @@ func main() {
 	csPath := flag.String("cs", "data/tfs/characters/naoki.json", "Path to character sheet JSON")
 	writingPath := flag.String("writing", "data/tfs/writing/empress-naoki-posts.txt", "Path to original writing sample")
 	userMessage := flag.String("message", "Hello, how are you?", "User message for chat")
-	fieldID := flag.String("file-id", "", "OpenAI file ID for batch download")
+	num := flag.Int("num", 5, "Number of results")
 	flag.Parse()
 
 	switch *mode {
@@ -210,14 +227,18 @@ func main() {
 		StartDiscordBot()
 	case "vector":
 		CreateVectorDBForTFS(*dryRun)
-	case "download-batch":
-		DownloadBatch(*fieldID)
 	case "complete-batches":
 		CompleteBatches()
 	case "list-batches":
 		ListBatches()
 	case "download-batches":
-		DownloadCompletedBatches()
+		Batches()
+	case "load-embeddings":
+		LoadEmbeddings()
+	case "search":
+		SearchForumPosts(*userMessage, *num)
+	case "count-lines":
+		CountLines(*csPath)
 
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
