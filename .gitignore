@@ -5,3 +5,5 @@ openai_batches/*
 data/memory.db
 data/tfs/characters/*
 data/tfs/writing/*
+memory.log
+recall.log

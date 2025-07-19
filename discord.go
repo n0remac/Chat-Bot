@@ -33,6 +33,7 @@ var (
 
 func StartDiscordBot() {
 	StartMemory()
+	StartRecall()
 	LoadAllCharacters()
 	if discordToken == "" {
 		log.Fatalf("DISCORD_BOT_TOKEN not set")
@@ -93,7 +94,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		mode = "chat" // Default mode if not set
 	}
 	cs := loadedCharacters[username]
-	writing := loadedWritings[username]
 
 	// Handle mode switching
 	if fields[0] == "mode" && len(fields) > 1 {
@@ -195,7 +195,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-
 	// If the user sends just a character name (shortcut to switch)
 	if len(fields) == 1 && loadedCharacters[fields[0]] != nil {
 		userCharacter[m.Author.ID] = fields[0]
@@ -209,7 +208,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	fmt.Println("History summary:", history.SummaryText)
 
 	s.ChannelTyping(m.ChannelID)
-	resp, err := ChatWith(cs, writing, userMsg, m.ChannelID, history.SummaryText)
+	posts := RecallRelevantPosts(m.ChannelID, username, userMsg)
+	strPosts := ""
+	for _, post := range posts {
+		strPosts += fmt.Sprintf("**%s**: %s\n", post.User, post.Message)
+	}
+	resp, err := ChatWith(cs, strPosts, userMsg, m.ChannelID, history.SummaryText)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error: %v", err))
 		return
