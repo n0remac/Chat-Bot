@@ -106,7 +106,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Handle "!create <username>"
 	if fields[0] == "create" && len(fields) > 1 {
 		username := strings.Join(fields[1:], " ")
-		fmt.Println(username)
 		go func() { // Run in background to avoid blocking
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Creating character sheet and best posts for %s...", username))
 			err := Charactar(username, false) // This writes to file
@@ -225,7 +224,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(chunk) > 1900 {
 			chunk = chunk[:1900]
 		}
-		fmt.Println("Sending chunk:", chunk)
 		s.ChannelMessageSend(m.ChannelID, chunk)
 		resp = resp[len(chunk):]
 	}

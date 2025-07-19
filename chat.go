@@ -27,7 +27,6 @@ var chatHistories = make(map[string][]ChatMessage)
 func buildChatHistoryMessages(history []ChatMessage) string {
 	strHistory := ""
 	for _, h := range history {
-		fmt.Println("Chat history message:", h.Content)
 		strHistory += fmt.Sprintf("%s: %s\n", h.Username, h.Content)
 	}
 	fmt.Println("strHistory", strHistory)
