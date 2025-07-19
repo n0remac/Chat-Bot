@@ -211,7 +211,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	posts := RecallRelevantPosts(m.ChannelID, username, userMsg)
 	strPosts := ""
 	for _, post := range posts {
-		strPosts += fmt.Sprintf("**%s**: %s\n", post.User, post.Message)
+		strPosts += fmt.Sprintf("%s\n", post.Message)
 	}
 	resp, err := ChatWith(cs, strPosts, userMsg, m.ChannelID, history.SummaryText)
 	if err != nil {

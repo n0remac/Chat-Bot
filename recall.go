@@ -74,7 +74,7 @@ func runRecall(postDb *sql.DB, qdrantClient *qdrant.Client, characterName, userI
 	// Step 1: Embed the user input
 	embResp, err := openaiClient.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
 		Input: []string{userInput},
-		Model: openai.LargeEmbedding3, // or AdaEmbeddingV2, but must match vectorSize
+		Model: openai.LargeEmbedding3,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("embedding request failed: %w", err)
