@@ -205,7 +205,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// take message from memoryReq.ReplyChan
 	history := GetMemorySummary(m.ChannelID, username)
 
-	fmt.Println("History summary:", history.SummaryText)
+	// fmt.Println("History summary:", history.SummaryText)
 
 	s.ChannelTyping(m.ChannelID)
 	posts := RecallRelevantPosts(m.ChannelID, username, userMsg)
@@ -225,6 +225,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(chunk) > 1900 {
 			chunk = chunk[:1900]
 		}
+		fmt.Println("Sending chunk:", chunk)
 		s.ChannelMessageSend(m.ChannelID, chunk)
 		resp = resp[len(chunk):]
 	}

@@ -115,6 +115,7 @@ func ChatWith(cs *CharacterSheet, writing, userMessage string, userId string, hi
 		{Role: "user", Content: userMessage},
 	}
 
+	fmt.Println("Chat messages:", messages)
 	
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:     "gpt-4.1-nano-2025-04-14",
