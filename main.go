@@ -239,6 +239,8 @@ func main() {
 		SearchForumPosts(*userMessage, *num)
 	case "count-lines":
 		CountLines(*csPath)
+	case "axis":
+		RunAxes()
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
 	}

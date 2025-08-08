@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -201,18 +202,46 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	s.ChannelTyping(m.ChannelID)
+
+	input := AxisInput{
+		UserInput:    userMsg,
+		Character:    cs, // loaded earlier
+		RecentMemory: RecallRelevantPosts(m.ChannelID, username, userMsg),
+	}
+
+	immediateAxes := []Axis{
+		&RecallAxis{ChannelID: m.ChannelID, CharacterName: username},
+		// &EmotionAxis{}, &EngagementAxis{}, etc.
+	}
+	ctx := context.Background()
+	axesResults := RunImmediateAxes(ctx, input, immediateAxes)
+
+	// Find the recall result (could also aggregate from multiple axes)
+	recallStr := ""
+	for _, res := range axesResults {
+		if res.Axis == "recall" && res.Reason != "" {
+			recallStr = res.Reason // or build from res.Score/res.Axis/res.Reason
+		}
+	}
+
+	// // Or: combine all axes into a context string for the prompt!
+	// axesSummary := ""
+	// for _, res := range axesResults {
+	// 	axesSummary += fmt.Sprintf("[%s: %d] %s\n", res.Axis, res.Score, res.Reason)
+	// }
+
 	// take message from memoryReq.ReplyChan
 	history := GetMemorySummary(m.ChannelID, username)
 
-	// fmt.Println("History summary:", history.SummaryText)
+	resp, err := ChatWith(
+		cs,
+		recallStr, // <-- replace strPosts with axes results!
+		userMsg,
+		m.ChannelID,
+		history.SummaryText, // still include long-term memory
+	)
 
-	s.ChannelTyping(m.ChannelID)
-	posts := RecallRelevantPosts(m.ChannelID, username, userMsg)
-	strPosts := ""
-	for _, post := range posts {
-		strPosts += fmt.Sprintf("%s\n", post.Message)
-	}
-	resp, err := ChatWith(cs, strPosts, userMsg, m.ChannelID, history.SummaryText)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error: %v", err))
 		return

@@ -69,6 +69,32 @@ func GetPostsByThread(db *sql.DB, threadPath string) ([]ForumPost, error) {
 	return posts, nil
 }
 
+func GetPostsByThreadPrefix(db *sql.DB, threadPrefix string) ([]ForumPost, error) {
+	query := `
+        SELECT post_id, user, user_num, timestamp, message, thread_path
+        FROM forum_posts
+        WHERE thread_path LIKE ? 
+        ORDER BY timestamp ASC
+    `
+	// Append wildcard to search all subdirectories/files
+	rows, err := db.Query(query, threadPrefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []ForumPost
+	for rows.Next() {
+		var p ForumPost
+		err := rows.Scan(&p.PostID, &p.User, &p.UserNum, &p.Timestamp, &p.Message, &p.ThreadPath)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
+}
+
 // --- Split posts into text chunks that fit within a window ---
 func ChunkPosts(posts []ForumPost, maxChars int) [][]ForumPost {
 	var chunks [][]ForumPost
@@ -130,11 +156,7 @@ func SummarizeChunk(db *sql.DB, client *openai.Client, posts []ForumPost, dryRun
 }
 
 // --- Summarize a whole thread ---
-func SummarizeThread(db *sql.DB, client *openai.Client, threadPath string, maxChars int, dryRun bool) (string, error) {
-	posts, err := GetPostsByThread(db, threadPath)
-	if err != nil {
-		return "", err
-	}
+func SummarizeThread(db *sql.DB, client *openai.Client, threadPath string, maxChars int, dryRun bool, posts []ForumPost) (string, error) {
 	if len(posts) == 0 {
 		return "(No posts in thread)", nil
 	}
@@ -198,7 +220,13 @@ func Summarize(dryRun bool, threadPath string) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	flag.Parse()
 	maxChars := 10000000
-	summary, err := SummarizeThread(db, client, threadPath, maxChars, dryRun)
+
+	posts, err := GetPostsByThreadPrefix(db, threadPath)
+	if err != nil {
+		log.Fatalf("failed to get posts for thread %s: %v", threadPath, err)
+	}
+
+	summary, err := SummarizeThread(db, client, threadPath, maxChars, dryRun, posts)
 	if err != nil {
 		log.Fatal(err)
 	}

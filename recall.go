@@ -135,6 +135,7 @@ func asString(v interface{}) string {
 	}
 	return fmt.Sprintf("%v", v)
 }
+
 func asInt64(v interface{}) int64 {
 	switch t := v.(type) {
 	case int64:
