@@ -231,16 +231,18 @@ func main() {
 		CompleteBatches()
 	case "list-batches":
 		ListBatches()
-	case "download-batches":
-		Batches()
+	case "all-batches":
+		AllBatches()
+	case "recent-batches":
+		BatchesFromFile()
+	case "batch-status":
+		CheckBatchStatuses()
 	case "load-embeddings":
 		LoadEmbeddings()
 	case "search":
 		SearchForumPosts(*userMessage, *num)
 	case "count-lines":
 		CountLines(*csPath)
-	case "axis":
-		RunAxes()
 	default:
 		fmt.Println("Please specify a mode: scrape, summarize, or timeline")
 	}

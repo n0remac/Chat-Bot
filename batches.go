@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/qdrant/go-client/qdrant"
 )
@@ -46,7 +47,7 @@ const (
 	COMBINED_FILE = "combined.jsonl"
 )
 
-func Batches() {
+func AllBatches() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		log.Fatal("OPENAI_API_KEY not set in environment")
@@ -165,6 +166,230 @@ func Batches() {
 	fmt.Println("Combined file is", combinedPath)
 
 	// Step 4: remove individual files
+	for _, fname := range downloadedFiles {
+		if err := os.Remove(fname); err != nil {
+			log.Println("  Error removing file:", fname, err)
+		} else {
+			fmt.Println("Removed individual file:", fname)
+		}
+	}
+	fmt.Println("All done! Combined file is ready for processing.")
+}
+
+func CheckBatchStatuses() {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("OPENAI_API_KEY not set in environment")
+	}
+
+	// Read batches.txt
+	batchIDs := make(map[string]struct{})
+	file, err := os.Open("batches.txt")
+	if err != nil {
+		log.Fatal("Failed to open batches.txt:", err)
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			batchIDs[line] = struct{}{}
+		}
+	}
+	file.Close()
+	if len(batchIDs) == 0 {
+		log.Fatal("No batch IDs found in batches.txt")
+	}
+
+	// Fetch all batches metadata (pagination)
+	allBatches := make(map[string]Batch)
+	after := ""
+	for {
+		url := "https://api.openai.com/v1/batches"
+		if after != "" {
+			url += "?after=" + after
+		}
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			log.Fatalf("Failed to fetch batches: %s\n%s", resp.Status, string(body))
+		}
+
+		var batchesResp BatchesResponse
+		if err := json.NewDecoder(resp.Body).Decode(&batchesResp); err != nil {
+			log.Fatal("Failed to decode JSON:", err)
+		}
+
+		for _, batch := range batchesResp.Data {
+			allBatches[batch.ID] = batch
+		}
+
+		if batchesResp.HasMore {
+			after = batchesResp.LastID
+		} else {
+			break
+		}
+	}
+
+	// Print status for each batch in batches.txt
+	fmt.Println("Batch Statuses:")
+	for id := range batchIDs {
+		if batch, found := allBatches[id]; found {
+			fmt.Printf("%s: %s\n", id, batch.Status)
+		} else {
+			fmt.Printf("%s: not found\n", id)
+		}
+	}
+}
+
+func BatchesFromFile() {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("OPENAI_API_KEY not set in environment")
+	}
+	os.MkdirAll(OUTDIR, 0755)
+
+	// Step 1: Read batches.txt (one batch ID per line)
+	batchIDs := make(map[string]struct{})
+	file, err := os.Open("batches.txt")
+	if err != nil {
+		log.Fatal("Failed to open batches.txt:", err)
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			batchIDs[line] = struct{}{}
+		}
+	}
+	file.Close()
+	if len(batchIDs) == 0 {
+		log.Fatal("No batch IDs found in batches.txt")
+	}
+
+	// Step 2: Fetch all batches metadata from OpenAI
+	var allBatches []Batch
+	after := ""
+	for {
+		url := "https://api.openai.com/v1/batches"
+		if after != "" {
+			url += "?after=" + after
+		}
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			log.Fatalf("Failed to fetch batches: %s\n%s", resp.Status, string(body))
+		}
+
+		var batchesResp BatchesResponse
+		if err := json.NewDecoder(resp.Body).Decode(&batchesResp); err != nil {
+			log.Fatal("Failed to decode JSON:", err)
+		}
+
+		allBatches = append(allBatches, batchesResp.Data...)
+		if batchesResp.HasMore {
+			after = batchesResp.LastID
+		} else {
+			break
+		}
+	}
+
+	// Step 3: Download output files for batches listed in batches.txt
+	var downloadedFiles []string
+	for _, batch := range allBatches {
+		if _, found := batchIDs[batch.ID]; !found {
+			continue // skip batches not in the list
+		}
+		if batch.Status != "completed" || batch.OutputFileID == "" {
+			fmt.Printf("Batch %s not ready for download (status: %s)\n", batch.ID, batch.Status)
+			continue
+		}
+		outfile := filepath.Join(OUTDIR, batch.ID+".jsonl")
+		if fileExistsAndNotEmpty(outfile) {
+			fmt.Printf("File %s exists, skipping.\n", outfile)
+			downloadedFiles = append(downloadedFiles, outfile)
+			continue
+		}
+		fmt.Printf("Downloading %s (file id: %s)...\n", outfile, batch.OutputFileID)
+		fileURL := fmt.Sprintf("https://api.openai.com/v1/files/%s/content", batch.OutputFileID)
+		req, err := http.NewRequest("GET", fileURL, nil)
+		if err != nil {
+			log.Println("  Request error:", err)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Println("  Download error:", err)
+			continue
+		}
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			log.Printf("  Failed to download file: %s\n%s", resp.Status, string(body))
+			continue
+		}
+		f, err := os.Create(outfile)
+		if err != nil {
+			log.Println("  File create error:", err)
+			resp.Body.Close()
+			continue
+		}
+		_, err = io.Copy(f, resp.Body)
+		resp.Body.Close()
+		f.Close()
+		if err != nil {
+			log.Println("  File write error:", err)
+			continue
+		}
+		downloadedFiles = append(downloadedFiles, outfile)
+	}
+
+	// Step 4: Combine all downloaded files into one
+	combinedPath := filepath.Join(OUTDIR, COMBINED_FILE)
+	fmt.Println("Combining files into", combinedPath)
+	combined, err := os.Create(combinedPath)
+	if err != nil {
+		log.Fatal("Failed to create combined file:", err)
+	}
+	defer combined.Close()
+	for _, fname := range downloadedFiles {
+		f, err := os.Open(fname)
+		if err != nil {
+			log.Println("  Skipping file:", fname, err)
+			continue
+		}
+		_, err = io.Copy(combined, f)
+		f.Close()
+		if err != nil {
+			log.Println("  Error combining file:", fname, err)
+			continue
+		}
+	}
+	fmt.Println("Combined file is", combinedPath)
+
+	// Step 5: remove individual files
 	for _, fname := range downloadedFiles {
 		if err := os.Remove(fname); err != nil {
 			log.Println("  Error removing file:", fname, err)

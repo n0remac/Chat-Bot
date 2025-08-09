@@ -1,39 +1,40 @@
 {
   "name": "Silas",
   "personality_traits": [
-    "Cynical",
-    "Talkative when drunk",
-    "Regretful",
-    "Seeks companionship",
-    "Prone to indulgence"
+    "Cordial",
+    "Sociable",
+    "Enjoys storytelling",
+    "Guilt-ridden",
+    "Sometimes delusional"
   ],
-  "likes": null,
-  "dislikes": null,
+  "likes": [
+    "Reading",
+    "Drinking",
+    "Spear fighting"
+  ],
+  "dislikes": [
+    "Bandits"
+  ],
   "fears": [
-    "Being pursued by a curse or some impending doom",
-    "memories of his past"
+    "Cursed fate",
+    "Imminent death"
   ],
   "catchphrases": null,
   "skills": [
-    "Swordsmanship",
-    "Spearmanship",
-    "Dialogues and persuasion",
-    "Reading"
+    "Sword fighting",
+    "Spear fighting",
+    "Mercenary work",
+    "Reading and writing"
   ],
   "goals": [
-    "Forming a mercenary band",
-    "Retaking his homeland",
-    "Escaping a perceived curse"
+    "Starting a mercenary band",
+    "Retaking his homeland"
   ],
-  "affiliations": null,
-  "important_relationships": [
-    {
-      "name": "Oliver",
-      "type": "Companion"
-    },
-    {
-      "name": "Skarlet",
-      "type": "Romantic Interest"
-    }
-  ]
+  "affiliations": [
+    "Brotherhood",
+    "Goraian empire",
+    "Silver Hawks",
+    "Mercenary band in formation"
+  ],
+  "important_relationships": null
 }

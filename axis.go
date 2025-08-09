@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -94,61 +93,6 @@ func (bp *BackgroundProcessor) runAxes(ctx context.Context, input AxisInput) {
 	}
 
 	wg.Wait()
-}
-
-func RunAxes() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	character, err := LoadCharacterSheet("character.json")
-	if err != nil {
-		log.Fatalf("failed to load character sheet: %v", err)
-	}
-	recentMemory := RecallRelevantPosts("channelID", "characterName", "hello")
-	userInput := "Hello, how are you feeling?"
-
-	input := AxisInput{
-		UserInput:    userInput,
-		Character:    character,
-		RecentMemory: recentMemory,
-	}
-
-	// Define axes
-	immediateAxes := []Axis{
-		&RecallAxis{ChannelID: "channelID", CharacterName: "characterName"},
-	}
-
-	backgroundAxes := []Axis{}
-
-	// Run conscious layer
-	immediateResults := RunImmediateAxes(ctx, input, immediateAxes)
-	for _, res := range immediateResults {
-		fmt.Printf("[Immediate] Axis %s: %d (%s)\n", res.Axis, res.Score, res.Reason)
-	}
-
-	// Start unconscious layer
-	bgProcessor := NewBackgroundProcessor(backgroundAxes, 5*time.Second)
-	bgProcessor.Start(ctx)
-
-	// Feed continuous input into unconscious layer
-	go func() {
-		for {
-			// simulate continuous input updates
-			bgProcessor.InputStream <- input
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
-	// Handle asynchronous background results
-	go func() {
-		for output := range bgProcessor.OutputStream {
-			fmt.Printf("[Background] Axis %s: %d (%s)\n", output.Axis, output.Score, output.Reason)
-			// Store in DB, update internal state, or trigger further processing
-		}
-	}()
-
-	// Wait or run other processes...
-	select {}
 }
 
 type RecallAxis struct {
